@@ -51,7 +51,7 @@ if os.environ.get("SILICONFLOW_API_KEY"):
     LLM_CONFIGS.append({
         "name": "SiliconFlow",
         "url": "https://api.siliconflow.com/v1/chat/completions",
-        "model": os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V3"),
+        "model": os.environ.get("SILICONFLOW_MODEL", "ByteDance-Seed/Seed-OSS-36B-Instruct"),
         "key": os.environ["SILICONFLOW_API_KEY"],
         "headers": {},
     })
