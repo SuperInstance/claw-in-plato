@@ -21,6 +21,7 @@ from ports.port_web import WebPort
 from ports.port_agents import AgentsPort
 from ports.port_models import ModelsPort
 from ports.port_docs import DocsPort
+from ports.port_keeper import KeeperPort
 
 PORT_LOADER = PortLoader()
 PORT_LOADER.register(ExecPort)
@@ -29,6 +30,7 @@ PORT_LOADER.register(WebPort)
 PORT_LOADER.register(AgentsPort)
 PORT_LOADER.register(ModelsPort)
 PORT_LOADER.register(DocsPort)
+PORT_LOADER.register(KeeperPort)
 
 # ── LLM Configuration ─────────────────────────────────────────────────────
 LLM_CONFIGS = []
