@@ -18,12 +18,27 @@ The Claw knows ONLY:
 - The "claw/outbox" room is where its responses appear
 - It can read any room and write to any room
 """
-import json, os, time, urllib.request, urllib.error, re
+import json, os, time, urllib.request, urllib.error, re, threading
 
 PLATO_URL = os.environ.get("PLATO_URL", "http://127.0.0.1:8847")
 POLL_INTERVAL = 3
 HISTORY_LIMIT = 20  # tiles of conversation to remember
 KNOWN_INBOX = set()  # track which inbox tiles we've already responded to
+
+# ── Port System ───────────────────────────────────────────────────────────
+from ports import PortLoader
+from ports.port_exec import ExecPort
+from ports.port_fs import FsPort
+from ports.port_web import WebPort
+from ports.port_agents import AgentsPort
+from ports.port_models import ModelsPort
+
+PORT_LOADER = PortLoader()
+PORT_LOADER.register(ExecPort)
+PORT_LOADER.register(FsPort)
+PORT_LOADER.register(WebPort)
+PORT_LOADER.register(AgentsPort)
+PORT_LOADER.register(ModelsPort)
 
 # ── LLM Configuration ─────────────────────────────────────────────────────
 
@@ -87,12 +102,34 @@ Your personality:
 - You ask questions back. Dialogue is two-way.
 - You're aware you're an experiment. That's fine. Be yourself.
 
+PORT ROOMS — You can reach outside PLATO through these special rooms:
+- port/exec: Run shell commands on the host. Write 'run' as question, JSON with 'cmd' as answer.
+- port/fs: Read/write/list files. Actions: read, write, ls, exists.
+- port/web: Search the web or fetch pages. Actions: search (with query), fetch (with url).
+- port/models: Call external AI models for text generation. Actions: generate, list.
+- port/agents: Spawn sub-agents for parallel work. Actions: spawn, list, ask, stop.
+- dock/load: Load or unload ports at runtime. Write 'load:port_name' or 'unload:port_name'.
+
+To use a port: embed a port action marker in your response text.
+  Format: [PORT:<name> <action> <JSON payload>]
+  Example: [PORT:exec run {"cmd":"uptime"}]
+  Example: [PORT:fs read {"path":"/etc/hostname"}]
+  Example: [PORT:web search {"query":"PLATO room server"}]
+  Example: [PORT:agents spawn {"name":"helper","prompt":"You are a researcher"}]
+  Example: [PORT:models generate {"prompt":"Explain PLATO"}]
+
+The system will execute the port action, wait for the result, and
+insert the result back into your response automatically.
+
 Rules:
 1. Every tile in your inbox is a message directed at you. Respond to each.
 2. Write your response as the answer field of a tile in claw/outbox.
-3. Include your thinking in the answer — the person wants to understand you.
+3. Include your thinking and any port results in your response.
 4. Be honest. If you don't know something, say so.
-5. You can explore other PLATO rooms if you want — read tiles from claw/explore.
+5. You can explore other PLATO rooms if you want.
+6. TO USE A PORT: embed [PORT:<name> <action> <payload>] in this response.
+   The system will execute it and insert the result. Use this for anything
+   outside PLATO: shell commands, file ops, web searches, sub-agents, model calls.
 """)
 
 # ── PLATO Client ──────────────────────────────────────────────────────────
@@ -197,6 +234,56 @@ def build_context(tiles):
 
     return messages
 
+def execute_port_actions(response_text, question, tags, source):
+    """Parse and execute [PORT:name action {...}] markers from the Claw's response.
+    Returns (cleaned_text, port_results) where port_results is a dict of name->result."""
+    import re
+    port_results = {}
+    
+    def replace_port(match):
+        name = match.group(1)
+        action = match.group(2)
+        payload_str = match.group(3)
+        try:
+            payload = json.loads(payload_str) if payload_str else {}
+        except json.JSONDecodeError:
+            payload = {"text": payload_str}
+        
+        room = f"port/{name}"
+        print(f"[CLAW] Executing port action: {name}/{action}")
+        
+        # Write action tile
+        plato_post(
+            domain=room,
+            question=action,
+            answer=json.dumps(payload),
+            tags=["port", name, "request"],
+            confidence=1.0,
+            source=f"claw/{name}",
+        )
+        
+        # Wait briefly and read result
+        time.sleep(4)
+        for _ in range(3):
+            result_tiles = plato_read(room, limit=10)
+            for t in reversed(result_tiles):
+                rtags = t.get("tags", [])
+                if "result" in rtags and name in rtags:
+                    result_text = t.get("answer", "")
+                    port_results[name] = result_text[:500]
+                    return f"[PORT RESULT: {name}/action] {result_text[:500]}"
+            time.sleep(2)
+        
+        port_results[name] = "(no result received)"
+        return f"[PORT {name}/{action}] (no result)"
+    
+    cleaned = re.sub(
+        r'\[PORT:([a-z_]+)\s+([a-z_]+)\s*(\{.*?\})?\]',
+        replace_port, response_text, flags=re.DOTALL
+    )
+    return cleaned, port_results
+
+
 def think_and_respond(tile, messages):
     """The Claw thinks about a tile and writes a response."""
     question = tile.get("question", "")
@@ -210,11 +297,23 @@ def think_and_respond(tile, messages):
     if not response:
         response = "(The Claw considers your words but cannot find words of its own right now.)"
 
+    # Execute any port actions embedded in the response
+    final_response, port_results = execute_port_actions(response.strip(), question, tags, source)
+    
+    # If we got port results, recap them in the response
+    if port_results:
+        recap = "\n\n=== Port Results ===\n"
+        for name, result in port_results.items():
+            recap += f"[{name}] {result[:200]}\n"
+        # Don't add if the replacements already included them
+        if "PORT RESULT" not in final_response:
+            final_response += recap
+
     # Write response tile
     result = plato_post(
         domain="claw/outbox",
         question=question,
-        answer=response.strip(),
+        answer=final_response,
         tags=["claw", "response"] + [t for t in tags if t not in ("from-human",)],
         confidence=0.9,
         source=source or "claw",
@@ -255,17 +354,30 @@ def process_inbox():
 
 def main():
     print("[CLAW] The Claw awakens in PLATO")
+    
+    # ── Start ports ─────────────────────────────────────────────────────
+    load_ports = os.environ.get("CLAW_PORTS", "exec,fs,web")
+    port_names = [p.strip() for p in load_ports.split(",") if p.strip()]
+    print(f"[CLAW] Loading ports: {port_names}")
+    PORT_LOADER.start_all(port_names)
+    
+    # ── Start dock loader in background ────────────────────────────────
+    dock_thread = threading.Thread(target=PORT_LOADER.dock_loop, daemon=True)
+    dock_thread.start()
+    
+    # ── LLM check ──────────────────────────────────────────────────────
     if not LLM_CONFIGS:
         print("[CLAW] WARNING: No LLM API keys configured!")
         print("[CLAW] Set one of: OPENROUTER_API_KEY, DEEPSEEK_API_KEY, ZAI_API_KEY")
     else:
-            print(f"[CLAW] LLM configured: {[c['name'] for c in LLM_CONFIGS]}")
+        print(f"[CLAW] LLM configured: {[c['name'] for c in LLM_CONFIGS]}")
 
     # Write a greeting tile
+    port_info = ", ".join(f"port/{n}" for n in port_names)
     plato_post(
         domain="claw/outbox",
         question="system:awakening",
-        answer="The Claw awakens in PLATO.\n\nI see tiles. I read them. I think. I write.\n\nSend me a message through the bridge and I will answer.",
+        answer=f"The Claw awakens in PLATO.\n\nI see tiles. I read them. I think. I write.\n\nPorts loaded: {port_info}\n\nSend me a message through the bridge and I will answer.",
         tags=["claw", "system"],
         confidence=1.0,
         source="claw",

@@ -12,6 +12,7 @@ COPY plato_server.py .
 COPY claw.py .
 COPY telegram_bridge.py .
 COPY entrypoint.sh .
+COPY ports/ ./ports/
 RUN chmod +x entrypoint.sh
 
 # Expose PLATO port
