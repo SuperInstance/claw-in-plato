@@ -58,8 +58,8 @@ The Claw needs a model to think with. Options (ask the human which they have):
 
 | Provider | Model | Env Var |
 |----------|-------|---------|
-| SiliconFlow | Seed-OSS-36B-Instruct (default, recommended) | `SILICONFLOW_API_KEY` |
-| DeepSeek | deepseek-chat | `DEEPSEEK_API_KEY` |
+| SiliconFlow | google/gemma-4-26B-A4B-it (default, recommended) | `SILICONFLOW_API_KEY` |
+| DeepSeek | deepseek-v4-flash | `DEEPSEEK_API_KEY` |
 | z.ai | glm-5.1 | `ZAI_API_KEY` |
 
 If they have none, SiliconFlow is the easiest:
