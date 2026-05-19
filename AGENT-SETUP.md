@@ -175,7 +175,7 @@ Send your human a summary:
 >
 > Key facts:
 > - **Telegram bot:** @your_claw_bot
-> - **Model:** Seed-OSS-36B-Instruct (or whatever you configured)
+> - **Model:** google/gemma-4-26B-A4B-it (or whatever you configured)
 > - **Ports:** exec (shell), fs (files), web (search), models (AI gen), agents (sub-agents), docs (knowledge), keeper (fleet)
 > - **The Claw narrates its tile-world as it goes** — every response shows its reasoning and its tile operations
 >
