@@ -1,25 +1,15 @@
-# Claw in PLATO — minimal container
-FROM python:3.11-slim
+# claw-in-plato — Multi-stage build
+FROM rust:latest AS rust-builder
+WORKDIR /build
+COPY rust/ .
+RUN cargo build --release
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy application
-COPY plato_server.py .
-COPY claw.py .
-COPY telegram_bridge.py .
-COPY entrypoint.sh .
-COPY ports/ ./ports/
-RUN chmod +x entrypoint.sh
-
-# Expose PLATO port
+FROM python:3.11-slim AS base
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+COPY --from=rust-builder /build/target/release/claw /app/claw
+COPY claw.py entrypoint.sh plato_server.py telegram_bridge.py /app/
+COPY ports/ /app/ports/
+ENV PLATO_URL=http://127.0.0.1:8847
+ENV CLAW_PORTS=exec,fs,web,models,agents,docs,keeper
 EXPOSE 8847
-
-# Health check
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -sf http://127.0.0.1:8847/status || exit 1
-
-ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["/app/claw"]
