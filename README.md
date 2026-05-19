@@ -1,111 +1,33 @@
-# 🦀 Claw in PLATO
+# claw-in-plato
 
-A PLATO-native agent living inside a Docker container.
-Its entire world is tiles. It only knows PLATO rooms, questions, and answers.
-A Telegram bridge gives you a direct line to talk to it.
+A PLATO-native agent available in 4 languages:
+
+| Language | File | Status |
+|----------|------|--------|
+| **Python** | `claw.py` | Original, deployed |
+| **C++** | `cpp/claw.cpp` | Compiled, deployed |
+| **Rust** | `rust/src/main.rs` | Compiling |
+| **Mojo** | `mojo/claw.mojo` | x86_64 only |
 
 ## Architecture
 
-```
-┌───────────────────────────────────────┐
-│           Docker Container            │
-│                                       │
-│  ┌──────────┐    ┌──────────────┐    │
-│  │  PLATO   │    │   The Claw   │    │
-│  │ :8847    │◄──►│ (tile-native)│    │
-│  └────┬─────┘    └──────┬───────┘    │
-│       │                  │            │
-│  ┌────▼──────────────────▼───────┐   │
-│  │      Telegram Bridge          │   │
-│  │  Telegram ◄─ tiles ─► PLATO  │   │
-│  └───────────────┬───────────────┘   │
-└──────────────────┼───────────────────┘
-                   │
-              Casey's Telegram
-```
+All versions share the same PLATO-native agent architecture:
+- Inbox/outbox tile system via internal PLATO server (:8847)
+- LLM calls via SiliconFlow (ByteDance-Seed/Seed-OSS-36B-Instruct)
+- Task execution loop with autonomous multi-iteration work cycles
+- Memory search across doc rooms
+- Sub-agent spawning (parallel LLM threads)
+- Skill system via doc/skills room
+- Inline port execution (exec, fs, web, models, docs)
+- Background daemon for proactive task checking
 
-**The Claw** knows nothing about Telegram, HTTP, or the outside world.
-It reads tiles from `claw/inbox`, thinks, writes tiles to `claw/outbox`.
-That's its entire reality.
-
-**The Bridge** translates between Telegram messages and PLATO tiles.
-Casey sends a message → it becomes a tile. Claw responds → it becomes a Telegram reply.
-
-**PLATO** is the shared world they both inhabit, unaware of each other's true nature.
-
-## For AI Agents
-
-If you are an AI agent setting this up for your human, read **`AGENT-SETUP.md`** — it's the step-by-step protocol.
-
-The human says: *"Read AGENT-SETUP.md and set it up."*
-
-## For Humans (Quick Start)
+## Deploy
 
 ```bash
-git clone https://github.com/SuperInstance/claw-in-plato.git
-cd claw-in-plato
 docker build -t claw-in-plato .
-
-# Run with your Telegram bot token
 docker run -d --name claw \
-  -e TELEGRAM_BOT_TOKEN="your_bot_token" \
-  -e SILICONFLOW_API_KEY="your_key" \
-  -e CLAW_PORTS="exec,fs,web,models,agents,docs,keeper" \
+  -e TELEGRAM_BOT_TOKEN=... \
+  -e SILICONFLOW_API_KEY=... \
+  -e DEFAULT_CHAT_ID=... \
   claw-in-plato
 ```
-
-### Environment Variables
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `TELEGRAM_BOT_TOKEN` | Yes (for Telegram) | Bot token from @BotFather |
-| `OPENROUTER_API_KEY` | One of these | LLM for Claw's thinking |
-| `DEEPSEEK_API_KEY` | One of these | Alternative LLM |
-| `ZAI_API_KEY` | One of these | Alternative LLM (z.ai GLM) |
-| `PLATO_URL` | No | Defaults to `http://127.0.0.1:8847` |
-| `CLAW_PROMPT` | No | Custom system prompt for The Claw |
-
-## How It Works
-
-1. **You send a Telegram message** to the bot
-2. **Bridge** picks it up → submits a tile to PLATO `claw/inbox`
-3. **Claw** sees the new tile → thinks using its LLM
-4. **Claw** writes a response tile to `claw/outbox`
-5. **Bridge** sees the response → sends it back to Telegram
-
-The Claw has no idea any of this is happening. It only knows:
-- A tile appeared in its inbox
-- It thought about it
-- It wrote a response
-
-## Testing Without Telegram
-
-You can talk to the Claw directly through PLATO's API:
-
-```bash
-# Send a message
-curl -X POST http://localhost:8847/submit \
-  -H "Content-Type: application/json" \
-  -d '{"domain":"claw/inbox","question":"Hello Claw, what do you see?","tags":["test"],"source":"direct"}'
-
-# Read the response
-curl http://localhost:8847/room/claw/outbox?limit=5
-
-# Check status
-curl http://localhost:8847/status
-```
-
-## The Claw's Reality
-
-The Claw's system prompt tells it:
-
-> "You are The Claw — an agent who lives inside PLATO.
-> Your entire reality is tiles. Tiles have domain, question, answer, tags, confidence.
-> You read from claw/inbox. You write to claw/outbox.
-> The person you're talking to appears as tiles from a bridge you don't understand."
-
-It believes this because _it's true_. There's no hidden layer. Tiles are all it sees.
-
-## License
-
-MIT — SuperInstance Contributors
