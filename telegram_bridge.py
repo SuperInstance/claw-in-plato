@@ -8,6 +8,7 @@ The Claw never knows Telegram exists — only sees tiles.
 import json, os, time, urllib.request, urllib.error
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+DEFAULT_CHAT_ID = os.environ.get("DEFAULT_CHAT_ID", "")
 PLATO_URL = os.environ.get("PLATO_URL", "http://127.0.0.1:8847")
 POLL_INTERVAL = 2  # seconds
 KNOWN_TILES = set()  # track which outbox tiles we've already sent
@@ -140,6 +141,8 @@ def process_plato_to_telegram():
             if chats:
                 with open(chats[-1]) as f:
                     chat_id = f.read().strip()
+        if not chat_id and DEFAULT_CHAT_ID:
+            chat_id = DEFAULT_CHAT_ID
 
         if chat_id and answer:
             display = f"🦀 {answer}"[:4000]

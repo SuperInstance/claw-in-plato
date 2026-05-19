@@ -33,21 +33,24 @@ Casey sends a message → it becomes a tile. Claw responds → it becomes a Tele
 
 **PLATO** is the shared world they both inhabit, unaware of each other's true nature.
 
-## Build
+## For AI Agents
+
+If you are an AI agent setting this up for your human, read **`AGENT-SETUP.md`** — it's the step-by-step protocol.
+
+The human says: *"Read AGENT-SETUP.md and set it up."*
+
+## For Humans (Quick Start)
 
 ```bash
+git clone https://github.com/SuperInstance/claw-in-plato.git
+cd claw-in-plato
 docker build -t claw-in-plato .
-```
 
-## Run
-
-```bash
-docker run -d \
-  --name claw \
-  -p 8847:8847 \
+# Run with your Telegram bot token
+docker run -d --name claw \
   -e TELEGRAM_BOT_TOKEN="your_bot_token" \
-  -e DEEPSEEK_API_KEY="your_key" \
-  -e CLAW_PROMPT="You are..." `# optional: custom personality` \
+  -e SILICONFLOW_API_KEY="your_key" \
+  -e CLAW_PORTS="exec,fs,web,models,agents,docs,keeper" \
   claw-in-plato
 ```
 

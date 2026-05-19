@@ -26,7 +26,7 @@ export PLATO_URL="${PLATO_URL:-http://127.0.0.1:8847}"
 # ── Start Telegram bridge (if token is set) ──────────────────────────────
 if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
   echo "[INIT] Starting Telegram bridge..."
-  python3 /app/telegram_bridge.py &
+  python3 -u /app/telegram_bridge.py &
   BRIDGE_PID=$!
   echo "[INIT] Telegram bridge PID: $BRIDGE_PID"
 else

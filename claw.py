@@ -149,7 +149,7 @@ def call_llm(messages, max_tokens=1000):
                 data=json.dumps(payload).encode(),
                 headers=headers,
             )
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=90) as r:
                 result = json.loads(r.read())
                 choice = result["choices"][0]["message"]["content"]
                 if choice:
